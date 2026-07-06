@@ -33,9 +33,8 @@ class Settings(BaseSettings):
     # CORS settings
     ALLOWED_ORIGINS: str = "http://localhost:8080,http://127.0.0.1:8080"
 
-    # LibreTranslate settings (strictly read from configuration; no default URL is hardcoded)
-    LIBRETRANSLATE_API_URL: str
-    LIBRETRANSLATE_API_KEY: str = ""
+    # Google Cloud Translation settings
+    GOOGLE_TRANSLATE_API_KEY: str
 
     # Pydantic Settings Configuration
     model_config = SettingsConfigDict(

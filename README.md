@@ -6,8 +6,8 @@ A production-ready translation web application featuring a decoupled FastAPI bac
 
 - **Decoupled Architecture**: Independent frontend and backend components.
 - **FastAPI Backend**: High-performance, asynchronous REST API.
-- **Responsive Frontend**: Modern UI built with vanilla technologies (HTML5, CSS3, ES6 JavaScript).
-- **LibreTranslate Integration**: Ready for self-hosted or cloud-based machine translation services.
+- **Responsive Frontend**: Modern UI built with vanilla HTML5, CSS3, and ES6 JavaScript.
+- **Google Cloud Translation Integration**: Integrates directly with the Google Cloud Translation REST API.
 - **Environment Configuration**: Structured environment variables for local development and production.
 
 ---
@@ -19,21 +19,24 @@ Language Translation Tool/
 ├── backend/
 │   ├── app/
 │   │   ├── api/            # API routing, request validation, and endpoint handlers
-│   │   ├── services/       # Core business logic and external integrations (e.g., LibreTranslate)
-│   │   ├── models/         # Pydantic schemas and database models (if applicable)
-│   │   ├── utils/          # Helper modules, configuration classes, and common utilities
-│   │   ├── static/         # Static assets (images, CSS, JS) served by the backend (optional)
-│   │   └── templates/      # HTML templates served by the backend (optional)
+│   │   ├── core/           # Configuration management and settings validation
+│   │   ├── services/       # Core business logic and external integrations (Google Cloud Translation API)
+│   │   ├── models/         # Pydantic schemas and serialization models
+│   │   ├── utils/          # Auxiliary helper modules and common utilities
+│   │   ├── static/         # Static assets served by the backend
+│   │   └── templates/      # HTML templates served by the backend
 │   ├── main.py             # Application entry point, CORS config, and middleware setup
-│   ├── requirements.txt    # Production and development dependencies
+│   ├── requirements.txt    # Production dependencies
 │   └── .env.example        # Reference environment configuration file
 ├── frontend/
 │   ├── css/                # Styling and layout stylesheets
-│   ├── js/                 # Client-side routing, DOM manipulation, and API integration scripts
+│   ├── js/                 # DOM manipulation and API integration scripts
 │   ├── assets/             # Images, icons, and logo resources
+│   ├── components/         # Reusable frontend UI components
 │   └── index.html          # Main application user interface markup
 ├── docs/                   # Architectural diagrams and developer documentation
 ├── screenshots/            # Visual previews of the application
+├── tests/                  # Integration and verification test suites
 ├── .gitignore              # Global git exclude rules
 ├── LICENSE                 # MIT License details
 └── README.md               # Main project documentation
@@ -54,16 +57,17 @@ Language Translation Tool/
   - HTML5 (Semantic document markup)
   - CSS3 (Custom properties, grid, and flexbox layout systems)
   - JavaScript (ES6 Modules, asynchronous fetch requests)
-- **External Services**:
-  - LibreTranslate API (Machine translation engine)
+- **Integration**:
+  - Google Cloud Translation v2 REST API (Machine translation engine)
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- Python 3.12 or higher installed on your system.
-- Access to a LibreTranslate instance (local server or cloud service).
+- Python 3.12 or higher installed.
+- A Google Cloud Project with the **Cloud Translation API** enabled.
+- A valid **API Key** generated from your Google Cloud Console.
 
 ### Backend Setup
 
@@ -93,26 +97,54 @@ Language Translation Tool/
    ```
 
 5. Configure environment variables:
-   Copy `.env.example` to `.env` and adjust the variables as needed:
+   Copy `.env.example` to `.env` inside the `backend` folder:
    ```bash
    cp .env.example .env
    ```
+   Open the `.env` file and insert your Google Cloud Translation API key:
+   ```env
+   GOOGLE_TRANSLATE_API_KEY=YOUR_ACTUAL_GOOGLE_API_KEY
+   ```
+   *Note: Never commit your `.env` file containing the actual API key to version control.*
 
 6. Start the development server:
    ```bash
    uvicorn main:app --reload
    ```
-   The backend will be available at `http://127.0.0.1:8000`. You can view the interactive documentation at `http://127.0.0.1:8000/docs`.
+   The backend API will run at `http://127.0.0.1:8000`. Interactively test endpoints at `http://127.0.0.1:8000/docs`.
 
 ### Frontend Setup
 
-The frontend is a static application.
-- You can host it using any static web server (such as Live Server, Nginx, or Python's `http.server`).
-- To serve it using Python's built-in server, navigate to the `frontend` directory and run:
+The frontend runs independently as a static site.
+- Serve the static files using a simple web server:
   ```bash
+  cd frontend
   python -m http.server 8080
   ```
-  Open `http://localhost:8080` in your web browser.
+  Open `http://localhost:8080` in your browser.
+
+---
+
+## Testing & Verification
+
+To run backend endpoint verification tests, navigate to the root directory and execute:
+```bash
+python -m unittest tests/verify.py
+```
+
+---
+
+## Deployment Instructions
+
+### Backend Deployment
+1. Set the environment variables `HOST=0.0.0.0`, `DEBUG=false`, and load a secure `GOOGLE_TRANSLATE_API_KEY` on your hosting provider (e.g. AWS App Runner, Google Cloud Run, Heroku, or Render).
+2. Start the production ASGI server:
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port $PORT
+   ```
+
+### Frontend Deployment
+Host the `frontend/` directory statically on services like Google Cloud Storage buckets, Netlify, Vercel, or GitHub Pages. Adjust CORS `ALLOWED_ORIGINS` on the backend to authorize your frontend deployment domain.
 
 ---
 

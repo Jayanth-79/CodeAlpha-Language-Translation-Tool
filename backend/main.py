@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Language Translation API",
-    description="Backend API service for the Language Translation Tool, interfacing with LibreTranslate.",
+    description="Backend API service for the Language Translation Tool, interfacing with Google Cloud Translation.",
     version="1.0.0",
     debug=settings.DEBUG,
     lifespan=lifespan,

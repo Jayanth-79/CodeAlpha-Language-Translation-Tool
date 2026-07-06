@@ -3,11 +3,21 @@ Main entrypoint for the Language Translation API.
 Initializes FastAPI, mounts static folders, configures CORS, and loads routes.
 """
 import sys
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+
+# Configure standard logging to console
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger("app.main")
 
 # Add current directory to path to ensure modules load correctly under various start environments
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -19,11 +29,23 @@ from app.api.router import api_router
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Asynchronous lifecycle manager handling startup and shutdown operations.
+    """
+    logger.info("Initializing Language Translation API backend...")
+    yield
+    logger.info("Language Translation API backend shutdown complete.")
+
+
 app = FastAPI(
     title="Language Translation API",
     description="Backend API service for the Language Translation Tool, interfacing with LibreTranslate.",
     version="1.0.0",
     debug=settings.DEBUG,
+    lifespan=lifespan,
 )
 
 # CORS middleware configuration

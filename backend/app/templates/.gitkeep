@@ -1,0 +1,2 @@
+# Placeholder to preserve the templates folder in Git.
+# Any HTML templates (e.g., Jinja2) rendered by the backend endpoints can be placed here.

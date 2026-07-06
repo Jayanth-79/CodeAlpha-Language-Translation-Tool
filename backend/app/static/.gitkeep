@@ -1,0 +1,2 @@
+# Placeholder to preserve the static folder in Git.
+# Any static files (e.g., CSS, JS, images) served directly by FastAPI can be placed here.

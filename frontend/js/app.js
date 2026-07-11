@@ -21,6 +21,270 @@ document.addEventListener('DOMContentLoaded', () => {
     let languagesMap = {};
     let lastDetectedLanguage = null;
 
+    // Custom Searchable Dropdown Class for UX Enhancement
+    class CustomDropdown {
+        constructor(containerEl, selectEl, isSource) {
+            this.container = containerEl;
+            this.select = selectEl;
+            this.isSource = isSource;
+            this.trigger = this.container.querySelector('.dropdown-trigger');
+            this.selectedText = this.trigger.querySelector('.selected-text');
+            this.menu = this.container.querySelector('.dropdown-menu');
+            this.searchInput = this.container.querySelector('.dropdown-search-input');
+            this.optionsList = this.container.querySelector('.dropdown-options');
+            
+            this.highlightedIndex = -1;
+            this.options = []; // Array of { value, text, element }
+
+            this.init();
+        }
+
+        init() {
+            // Toggle dropdown open/close
+            this.trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggle();
+            });
+
+            // Handle typing in search input
+            this.searchInput.addEventListener('input', () => {
+                this.filterOptions();
+            });
+
+            // Prevent closing when clicking inside search input
+            this.searchInput.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            // Close on escape key in search input
+            this.searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    this.close();
+                    this.trigger.focus();
+                    e.preventDefault();
+                }
+            });
+
+            // Keyboard navigation
+            this.container.addEventListener('keydown', (e) => {
+                this.handleKeydown(e);
+            });
+
+            // Global click outside listener
+            document.addEventListener('click', () => {
+                this.close();
+            });
+        }
+
+        toggle() {
+            const isActive = this.container.classList.contains('active');
+            // Close other dropdowns
+            document.querySelectorAll('.custom-dropdown').forEach(dropdown => {
+                if (dropdown !== this.container) {
+                    dropdown.classList.remove('active');
+                    dropdown.querySelector('.dropdown-trigger').setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            if (isActive) {
+                this.close();
+            } else {
+                this.open();
+            }
+        }
+
+        open() {
+            this.container.classList.add('active');
+            this.trigger.setAttribute('aria-expanded', 'true');
+            this.searchInput.value = '';
+            this.filterOptions();
+            this.searchInput.focus();
+            
+            const selectedOptIndex = this.options.findIndex(opt => opt.value === this.select.value);
+            this.highlightIndex(selectedOptIndex);
+        }
+
+        close() {
+            if (this.container.classList.contains('active')) {
+                this.container.classList.remove('active');
+                this.trigger.setAttribute('aria-expanded', 'false');
+                this.highlightedIndex = -1;
+            }
+        }
+
+        rebuild() {
+            this.optionsList.innerHTML = '';
+            this.options = [];
+
+            Array.from(this.select.options).forEach((nativeOpt) => {
+                const li = document.createElement('li');
+                li.className = 'dropdown-option';
+                li.setAttribute('role', 'option');
+                li.setAttribute('data-value', nativeOpt.value);
+                li.textContent = nativeOpt.textContent;
+
+                li.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.selectOption(nativeOpt.value);
+                });
+
+                this.optionsList.appendChild(li);
+                this.options.push({
+                    value: nativeOpt.value,
+                    text: nativeOpt.textContent,
+                    element: li
+                });
+            });
+
+            this.updateUI();
+        }
+
+        selectOption(value) {
+            this.select.value = value;
+            this.select.dispatchEvent(new Event('change'));
+            this.close();
+            this.trigger.focus();
+        }
+
+        updateUI() {
+            const currentValue = this.select.value;
+            const currentOpt = this.options.find(opt => opt.value === currentValue);
+            
+            if (currentOpt) {
+                this.selectedText.textContent = currentOpt.text;
+                this.options.forEach(opt => {
+                    if (opt.value === currentValue) {
+                        opt.element.classList.add('selected');
+                        opt.element.setAttribute('aria-selected', 'true');
+                    } else {
+                        opt.element.classList.remove('selected');
+                        opt.element.setAttribute('aria-selected', 'false');
+                    }
+                });
+            } else {
+                this.selectedText.textContent = this.isSource ? 'Detect Language' : '';
+            }
+        }
+
+        filterOptions() {
+            const query = this.searchInput.value.toLowerCase().trim();
+            let firstVisibleIndex = -1;
+            
+            this.options.forEach((opt, idx) => {
+                const matches = opt.text.toLowerCase().includes(query);
+                if (matches) {
+                    opt.element.style.display = '';
+                    if (firstVisibleIndex === -1) {
+                        firstVisibleIndex = idx;
+                    }
+                } else {
+                    opt.element.style.display = 'none';
+                }
+            });
+
+            this.highlightIndex(firstVisibleIndex);
+        }
+
+        highlightIndex(index) {
+            this.options.forEach(opt => opt.element.classList.remove('highlighted'));
+            this.highlightedIndex = index;
+
+            if (index >= 0 && index < this.options.length) {
+                const opt = this.options[index];
+                opt.element.classList.add('highlighted');
+                
+                const containerHeight = this.optionsList.clientHeight;
+                const elemTop = opt.element.offsetTop;
+                const elemHeight = opt.element.clientHeight;
+                const scrollOffset = this.optionsList.scrollTop;
+
+                if (elemTop < scrollOffset) {
+                    this.optionsList.scrollTop = elemTop;
+                } else if (elemTop + elemHeight > scrollOffset + containerHeight) {
+                    this.optionsList.scrollTop = elemTop + elemHeight - containerHeight;
+                }
+            }
+        }
+
+        getVisibleOptions() {
+            return this.options
+                .map((opt, index) => ({ opt, index }))
+                .filter(item => item.opt.element.style.display !== 'none');
+        }
+
+        handleKeydown(e) {
+            if (!this.container.classList.contains('active')) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+                    this.open();
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            const visibleOptions = this.getVisibleOptions();
+            if (visibleOptions.length === 0) return;
+
+            const currentHighlightIndexInVisible = visibleOptions.findIndex(item => item.index === this.highlightedIndex);
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const nextIndexInVisible = (currentHighlightIndexInVisible + 1) % visibleOptions.length;
+                this.highlightIndex(visibleOptions[nextIndexInVisible].index);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prevIndexInVisible = (currentHighlightIndexInVisible - 1 + visibleOptions.length) % visibleOptions.length;
+                this.highlightIndex(visibleOptions[prevIndexInVisible].index);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (this.highlightedIndex >= 0 && this.highlightedIndex < this.options.length) {
+                    this.selectOption(this.options[this.highlightedIndex].value);
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                this.close();
+                this.trigger.focus();
+            }
+        }
+    }
+
+    function interceptSelectValue(selectEl, onSet) {
+        const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+        Object.defineProperty(selectEl, 'value', {
+            get() {
+                return descriptor.get.call(this);
+            },
+            set(val) {
+                descriptor.set.call(this, val);
+                onSet(val);
+            }
+        });
+    }
+
+    // Intercept select value sets to update custom dropdowns
+    let sourceDropdown = null;
+    let targetDropdown = null;
+
+    if (sourceSelect) {
+        interceptSelectValue(sourceSelect, (val) => {
+            if (sourceDropdown) sourceDropdown.updateUI();
+        });
+    }
+    if (targetSelect) {
+        interceptSelectValue(targetSelect, (val) => {
+            if (targetDropdown) targetDropdown.updateUI();
+        });
+    }
+
+    const sourceCustomDropdownEl = document.getElementById('source-custom-dropdown');
+    const targetCustomDropdownEl = document.getElementById('target-custom-dropdown');
+
+    if (sourceCustomDropdownEl && sourceSelect) {
+        sourceDropdown = new CustomDropdown(sourceCustomDropdownEl, sourceSelect, true);
+    }
+    if (targetCustomDropdownEl && targetSelect) {
+        targetDropdown = new CustomDropdown(targetCustomDropdownEl, targetSelect, false);
+    }
+
     // Fetch and populate supported languages on load
     loadLanguages();
 
@@ -164,6 +428,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (languages.length > 0) {
                     targetSelect.value = languages[0].code;
                 }
+
+                // Rebuild custom dropdown options after populating the native select elements
+                if (sourceDropdown) sourceDropdown.rebuild();
+                if (targetDropdown) targetDropdown.rebuild();
             }
         } catch (error) {
             console.error('Error fetching languages:', error);

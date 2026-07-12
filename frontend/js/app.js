@@ -15,7 +15,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const charCounter = document.getElementById('char-counter');
     const translateBtn = document.getElementById('translate-btn');
     const copyBtn = document.getElementById('copy-btn');
+    const downloadBtn = document.getElementById('download-btn');
     const swapLanguagesBtn = document.getElementById('swap-languages-btn');
+
+    // Sync disabled state of download button with copy button programmatically
+    if (copyBtn && downloadBtn) {
+        const descriptor = Object.getOwnPropertyDescriptor(HTMLButtonElement.prototype, 'disabled');
+        Object.defineProperty(copyBtn, 'disabled', {
+            get() {
+                return descriptor.get.call(this);
+            },
+            set(val) {
+                descriptor.set.call(this, val);
+                downloadBtn.disabled = val;
+            }
+        });
+    }
 
     const API_BASE_URL = 'http://127.0.0.1:8000/api';
     let languagesMap = {};
@@ -162,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } else {
-                this.selectedText.textContent = this.isSource ? 'Detect Language' : '';
+                this.selectedText.textContent = this.isSource ? 'Auto' : '';
             }
         }
 
@@ -305,7 +320,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (text.trim() === '') {
                 targetTextarea.value = '';
                 copyBtn.disabled = true;
-                clearError();
             }
         });
     }
@@ -375,11 +389,77 @@ document.addEventListener('DOMContentLoaded', () => {
                         copyBtn.innerHTML = originalHTML;
                         copyBtn.disabled = false;
                     }, 2000);
+
+                    // Show success toast
+                    showToast('Text copied successfully.', 'success');
                 })
                 .catch(err => {
                     console.error('Failed to copy text: ', err);
-                    showError('Failed to copy text to clipboard.');
+                    showToast('Failed to copy text to clipboard.', 'error');
                 });
+        });
+    }
+
+    // Download to text file action
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', () => {
+            const translatedText = targetTextarea ? targetTextarea.value.trim() : '';
+            if (!translatedText) {
+                showToast('No translated text available to download.', 'warning');
+                return;
+            }
+
+            const sourceLang = sourceSelect.options[sourceSelect.selectedIndex]?.text || sourceSelect.value || 'Unknown';
+            const targetLang = targetSelect.options[targetSelect.selectedIndex]?.text || targetSelect.value || 'Unknown';
+            const sourceText = sourceTextarea ? sourceTextarea.value : '';
+
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+
+            const filename = `translation_${year}-${month}-${day}_${hours}-${minutes}.txt`;
+            const localDateTime = now.toLocaleString();
+
+            const content = `----------------------------------------
+
+Language Translation Tool
+
+Source Language:
+${sourceLang}
+
+Target Language:
+${targetLang}
+
+----------------------------------------
+
+Source Text:
+
+${sourceText}
+
+----------------------------------------
+
+Translated Text:
+
+${translatedText}
+
+----------------------------------------
+
+Generated on:
+${localDateTime}
+
+----------------------------------------`;
+
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
         });
     }
 
@@ -387,12 +467,24 @@ document.addEventListener('DOMContentLoaded', () => {
      * Fetch supported languages from the backend and populate dropdown selectors.
      */
     async function loadLanguages() {
+        if (!navigator.onLine) {
+            showToast('Could not connect to the translation service. Please check your network connection.', 'error');
+            return;
+        }
+
+        // Show loading info toast
+        showToast('Loading languages...', 'info');
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         try {
-            const response = await fetch(`${API_BASE_URL}/languages`);
+            const response = await fetch(`${API_BASE_URL}/languages`, { signal: controller.signal });
             if (!response.ok) {
                 throw new Error(`Failed to load languages (HTTP ${response.status})`);
             }
             const languages = await response.json();
+            clearTimeout(timeoutId);
 
             // Populate languagesMap
             languagesMap = {};
@@ -402,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (sourceSelect && targetSelect) {
                 // Clear and rebuild options
-                sourceSelect.innerHTML = '<option value="auto">Detect Language</option>';
+                sourceSelect.innerHTML = '<option value="auto">Auto</option>';
                 targetSelect.innerHTML = '';
 
                 languages.forEach(lang => {
@@ -434,8 +526,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (targetDropdown) targetDropdown.rebuild();
             }
         } catch (error) {
+            clearTimeout(timeoutId);
             console.error('Error fetching languages:', error);
-            showError('Could not connect to the translation service to load languages. Please ensure the backend is running.');
+            if (error.name === 'AbortError') {
+                showToast('Loading languages timed out. Please refresh the page to try again.', 'error');
+            } else {
+                showToast('Something went wrong. Please try again later.', 'error');
+            }
         }
     }
 
@@ -451,6 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Skip translation for empty or whitespace-only text
         if (!text) {
+            showToast('Please enter some text to translate.', 'warning');
             targetTextarea.value = '';
             if (copyBtn) {
                 copyBtn.disabled = true;
@@ -460,7 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Same Source and Target Validation (except when source is "auto")
         if (source !== 'auto' && source === target) {
-            showError('Source and target languages cannot be the same.');
+            showToast('Source and target languages cannot be the same.', 'warning');
             targetTextarea.value = '';
             if (copyBtn) {
                 copyBtn.disabled = true;
@@ -468,11 +566,36 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (!navigator.onLine) {
+            showToast('Unable to connect to the translation service. Please check your network connection.', 'error');
+            return;
+        }
+
         // Setup loading states
-        clearError();
-        const originalBtnText = translateBtn.textContent;
+        const originalBtnText = translateBtn.innerHTML;
+        const originalBtnWidth = translateBtn.offsetWidth;
+        translateBtn.style.width = `${originalBtnWidth}px`;
         translateBtn.disabled = true;
-        translateBtn.textContent = 'Translating...';
+        translateBtn.innerHTML = `
+            <svg class="spinner" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle;">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25" fill="none"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-linecap="round"></path>
+            </svg>
+            <span>Translating...</span>
+        `;
+        if (targetTextarea) {
+            targetTextarea.classList.add('loading-shimmer');
+        }
+
+        // Show Toast Info: Detecting or Translating
+        if (source === 'auto') {
+            showToast('Detecting language...', 'info');
+        } else {
+            showToast('Translating...', 'info');
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         try {
             // First perform language detection to verify the input text
@@ -482,6 +605,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ text }),
+                signal: controller.signal
             });
 
             if (!detectResponse.ok) {
@@ -496,7 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Unsupported or Unrecognized Language check
             if (!detectedCode || detectedCode === 'und' || !isSupported || confidence < 0.2) {
-                showError('The entered language is not supported or could not be identified.');
+                showToast('The entered language is not supported or could not be identified.', 'error');
                 targetTextarea.value = '';
                 if (copyBtn) {
                     copyBtn.disabled = true;
@@ -509,7 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (detectedCode !== source) {
                     const detectedLanguageName = languagesMap[detectedCode] || detectedCode;
                     const selectedLanguageName = languagesMap[source] || source;
-                    showError(`The entered text appears to be ${detectedLanguageName}, but you selected ${selectedLanguageName}. Please select the correct source language or use Detect Language.`);
+                    showToast(`The entered text appears to be ${detectedLanguageName}, but you selected ${selectedLanguageName}. Please select the correct source language or use Detect Language.`, 'warning');
                     targetTextarea.value = '';
                     if (copyBtn) {
                         copyBtn.disabled = true;
@@ -525,6 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ text, source, target }),
+                signal: controller.signal
             });
 
             if (!response.ok) {
@@ -536,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const isIdentical = translatedText.trim().toLowerCase() === text.trim().toLowerCase();
 
             if (isIdentical && (!detectedCode || detectedCode === 'und' || !isSupported || confidence < 0.3)) {
-                showError('The entered language is not supported or could not be identified.');
+                showToast('The entered language is not supported or could not be identified.', 'error');
                 targetTextarea.value = '';
                 if (copyBtn) {
                     copyBtn.disabled = true;
@@ -551,9 +676,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (copyBtn) {
                 copyBtn.disabled = !translatedText;
             }
+
+            // Save translation to history
+            saveTranslationToHistory(text, source, target, translatedText);
+
+            // Show success toast
+            showToast('Translation completed.', 'success');
+            clearTimeout(timeoutId);
         } catch (error) {
+            clearTimeout(timeoutId);
             console.error('Translation error:', error);
-            showError('An error occurred with the translation service. Please try again.');
+            if (error.name === 'AbortError') {
+                showToast('Translation request timed out. Please check your connection.', 'error');
+            } else {
+                showToast('Translation failed. Please try again.', 'error');
+            }
             targetTextarea.value = '';
             if (copyBtn) {
                 copyBtn.disabled = true;
@@ -561,52 +698,623 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             // Restore button state
             translateBtn.disabled = false;
-            translateBtn.textContent = originalBtnText;
-        }
-    }
-
-    /**
-     * Show a premium error banner below the toolbar.
-     */
-    function showError(message) {
-        let banner = document.querySelector('.error-banner');
-        if (!banner) {
-            banner = document.createElement('div');
-            banner.className = 'error-banner';
-
-            const messageSpan = document.createElement('span');
-            messageSpan.className = 'error-banner-message';
-            banner.appendChild(messageSpan);
-
-            const closeBtn = document.createElement('button');
-            closeBtn.className = 'error-banner-close';
-            closeBtn.innerHTML = '&times;';
-            closeBtn.type = 'button';
-            closeBtn.setAttribute('aria-label', 'Close error notification');
-            closeBtn.addEventListener('click', () => banner.remove());
-            banner.appendChild(closeBtn);
-
-            const card = document.querySelector('.translation-card');
-            const toolbar = document.querySelector('.translation-toolbar');
-            if (card && toolbar) {
-                card.insertBefore(banner, toolbar.nextSibling);
+            translateBtn.innerHTML = originalBtnText;
+            translateBtn.style.width = '';
+            if (targetTextarea) {
+                targetTextarea.classList.remove('loading-shimmer');
             }
         }
+    }
 
-        const messageSpan = banner.querySelector('.error-banner-message');
-        if (messageSpan) {
-            messageSpan.textContent = message;
+
+
+    // ==========================================
+    // TRANSLATION HISTORY FEATURE IMPLEMENTATION
+    // ==========================================
+    
+    function saveTranslationToHistory(sourceText, sourceCode, targetCode, translatedText) {
+        if (!sourceText.trim() || !translatedText.trim()) return;
+        
+        let history = JSON.parse(localStorage.getItem('translation_history') || '[]');
+        
+        // Find language names
+        let sourceName = '';
+        if (sourceCode === 'auto') {
+            const detectedName = languagesMap[lastDetectedLanguage] || lastDetectedLanguage || 'Unknown';
+            sourceName = `${detectedName} (Detected)`;
+        } else {
+            sourceName = languagesMap[sourceCode] || sourceCode;
+        }
+        const targetName = languagesMap[targetCode] || targetCode;
+        
+        const timestamp = new Date().toLocaleString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        const item = {
+            id: Date.now().toString(),
+            sourceText,
+            sourceCode,
+            sourceName,
+            targetCode,
+            targetName,
+            translatedText,
+            timestamp
+        };
+        
+        // Prevent duplicate consecutive entries
+        if (history.length > 0) {
+            const last = history[0];
+            if (last.sourceText === sourceText && last.sourceCode === sourceCode && last.targetCode === targetCode) {
+                return;
+            }
+        }
+        
+        history.unshift(item);
+        if (history.length > 20) {
+            history = history.slice(0, 20);
+        }
+        
+        localStorage.setItem('translation_history', JSON.stringify(history));
+    }
+
+    // History Drawer Logic
+    const historyBtn = document.getElementById('history-btn');
+    const historyDrawer = document.getElementById('history-drawer');
+    const closeHistoryBtn = document.getElementById('close-history-btn');
+    const historyDrawerBackdrop = document.getElementById('history-drawer-backdrop');
+    const clearAllHistoryBtn = document.getElementById('clear-all-history-btn');
+    const historyItemsContainer = document.getElementById('history-items-container');
+
+    function escapeHTML(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function renderHistory() {
+        if (!historyItemsContainer) return;
+        
+        const history = JSON.parse(localStorage.getItem('translation_history') || '[]');
+        
+        if (history.length === 0) {
+            historyItemsContainer.innerHTML = `
+                <div class="history-empty-state">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <p>No translations yet.</p>
+                </div>
+            `;
+            if (clearAllHistoryBtn) clearAllHistoryBtn.style.display = 'none';
+            return;
+        }
+
+        if (clearAllHistoryBtn) clearAllHistoryBtn.style.display = 'block';
+
+        historyItemsContainer.innerHTML = history.map(item => `
+            <div class="history-item" data-id="${item.id}">
+                <div class="history-item-header">
+                    <div class="history-item-languages">
+                        <span>${item.sourceName}</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                        <span>${item.targetName}</span>
+                    </div>
+                    <button class="delete-history-item-btn" data-id="${item.id}" aria-label="Delete history item" type="button">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="history-item-body">
+                    <div class="history-item-text">${escapeHTML(item.sourceText)}</div>
+                    <div class="history-item-translated">${escapeHTML(item.translatedText)}</div>
+                </div>
+                <div class="history-item-footer" style="color: var(--text-muted); font-size: 0.75rem; text-align: right; font-weight: 555; margin-top: 0.25rem;">
+                    ${item.timestamp}
+                </div>
+            </div>
+        `).join('');
+
+        // Attach event listeners to items
+        const items = historyItemsContainer.querySelectorAll('.history-item');
+        items.forEach(el => {
+            el.addEventListener('click', (e) => {
+                const id = el.getAttribute('data-id');
+                const historyItem = history.find(x => x.id === id);
+                if (historyItem) {
+                    restoreHistoryItem(historyItem);
+                }
+            });
+        });
+
+        // Attach delete button listeners
+        const deleteButtons = historyItemsContainer.querySelectorAll('.delete-history-item-btn');
+        deleteButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = btn.getAttribute('data-id');
+                deleteHistoryItem(id);
+            });
+        });
+    }
+
+    function deleteHistoryItem(id) {
+        let history = JSON.parse(localStorage.getItem('translation_history') || '[]');
+        history = history.filter(item => item.id !== id);
+        localStorage.setItem('translation_history', JSON.stringify(history));
+        renderHistory();
+    }
+
+    function clearAllHistory() {
+        showConfirmModal(
+            'Clear translation history?',
+            'This action cannot be undone.',
+            () => {
+                localStorage.removeItem('translation_history');
+                renderHistory();
+            }
+        );
+    }
+
+    function restoreHistoryItem(item) {
+        // Restore source and target select values
+        if (sourceSelect) {
+            sourceSelect.value = item.sourceCode;
+            sourceSelect.dispatchEvent(new Event('change'));
+        }
+        if (targetSelect) {
+            targetSelect.value = item.targetCode;
+            targetSelect.dispatchEvent(new Event('change'));
+        }
+
+        // Restore textareas
+        if (sourceTextarea) {
+            sourceTextarea.value = item.sourceText;
+            sourceTextarea.dispatchEvent(new Event('input'));
+        }
+        if (targetTextarea) {
+            targetTextarea.value = item.translatedText;
+        }
+
+        if (copyBtn) {
+            copyBtn.disabled = !item.translatedText;
+        }
+
+        closeDrawer();
+    }
+
+    let historyActiveElement = null;
+
+    function openDrawer() {
+        if (historyDrawer) {
+            historyActiveElement = document.activeElement;
+            historyDrawer.classList.add('active');
+            historyDrawer.setAttribute('aria-hidden', 'false');
+            renderHistory();
+            if (closeHistoryBtn) {
+                closeHistoryBtn.focus();
+            }
+            window.addEventListener('keydown', handleDrawerKeyDown);
+            historyDrawer.addEventListener('keydown', handleDrawerTab);
         }
     }
 
-    /**
-     * Clear the error banner if one exists.
-     */
-    function clearError() {
-        const banner = document.querySelector('.error-banner');
-        if (banner) {
-            banner.remove();
+    function closeDrawer() {
+        if (historyDrawer) {
+            historyDrawer.classList.remove('active');
+            historyDrawer.setAttribute('aria-hidden', 'true');
+            window.removeEventListener('keydown', handleDrawerKeyDown);
+            historyDrawer.removeEventListener('keydown', handleDrawerTab);
+            if (historyActiveElement) {
+                historyActiveElement.focus();
+            }
         }
     }
+
+    function handleDrawerKeyDown(e) {
+        if (e.key === 'Escape') {
+            closeDrawer();
+        }
+    }
+
+    function handleDrawerTab(e) {
+        if (e.key === 'Tab') {
+            const focusables = Array.from(
+                historyDrawer.querySelectorAll('button, [tabindex="0"]')
+            ).filter(el => !el.disabled && el.offsetWidth > 0 && el.offsetHeight > 0);
+            
+            if (focusables.length === 0) return;
+            
+            const firstFocusable = focusables[0];
+            const lastFocusable = focusables[focusables.length - 1];
+            
+            if (e.shiftKey) {
+                if (document.activeElement === firstFocusable) {
+                    lastFocusable.focus();
+                    e.preventDefault();
+                }
+            } else {
+                if (document.activeElement === lastFocusable) {
+                    firstFocusable.focus();
+                    e.preventDefault();
+                }
+            }
+        }
+    }
+
+    // Event Wireups
+    if (historyBtn) {
+        historyBtn.addEventListener('click', openDrawer);
+    }
+    if (closeHistoryBtn) {
+        closeHistoryBtn.addEventListener('click', closeDrawer);
+    }
+    if (historyDrawerBackdrop) {
+        historyDrawerBackdrop.addEventListener('click', closeDrawer);
+    }
+    if (clearAllHistoryBtn) {
+        clearAllHistoryBtn.addEventListener('click', clearAllHistory);
+    }
+
+    // ==========================================
+    // CLEAR SOURCE & CLEAR TRANSLATION ACTIONS (WITH CUSTOM MODALS)
+    // ==========================================
+    
+    const clearSourceBtn = document.getElementById('clear-source-btn');
+    if (clearSourceBtn) {
+        clearSourceBtn.addEventListener('click', () => {
+            const sourceText = sourceTextarea ? sourceTextarea.value.trim() : '';
+            if (!sourceText) {
+                showToast('Source text is already empty.', 'warning');
+                return;
+            }
+            showConfirmModal(
+                'Clear source text?',
+                'This will remove the source text and the current translation.',
+                () => {
+                    if (sourceTextarea) {
+                        sourceTextarea.value = '';
+                        sourceTextarea.focus();
+                        sourceTextarea.dispatchEvent(new Event('input'));
+                    }
+                    if (targetTextarea) {
+                        targetTextarea.value = '';
+                    }
+                    if (copyBtn) {
+                        copyBtn.disabled = true;
+                    }
+                    
+                    // Remove active toasts
+                    const toastContainer = document.getElementById('toast-container');
+                    if (toastContainer) {
+                        toastContainer.innerHTML = '';
+                        toastContainer.remove();
+                    }
+                }
+            );
+        });
+    }
+
+    const clearTargetBtn = document.getElementById('clear-target-btn');
+    if (clearTargetBtn) {
+        clearTargetBtn.addEventListener('click', () => {
+            const targetText = targetTextarea ? targetTextarea.value.trim() : '';
+            if (!targetText) {
+                showToast('Translation is already empty.', 'warning');
+                return;
+            }
+            showConfirmModal(
+                'Clear translation?',
+                'Only the translated text will be removed.',
+                () => {
+                    if (targetTextarea) {
+                        targetTextarea.value = '';
+                    }
+                    if (copyBtn) {
+                        copyBtn.disabled = true;
+                    }
+                }
+            );
+        });
+    }
+
+    // ==========================================
+    // TOAST NOTIFICATION SYSTEM
+    // ==========================================
+    
+    function showToast(message, type = 'info') {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'toast-container';
+            document.body.appendChild(container);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `toast-item toast-${type}`;
+        toast.innerHTML = `
+            <div class="toast-icon">
+                ${getToastIcon(type)}
+            </div>
+            <div class="toast-message">${escapeHTML(message)}</div>
+            <button class="toast-close-btn" aria-label="Close notification">&times;</button>
+        `;
+
+        container.appendChild(toast);
+
+        // Timer for auto-dismiss
+        let dismissTimeout;
+
+        function startTimer() {
+            dismissTimeout = setTimeout(() => {
+                dismissToast(toast);
+            }, 4000);
+        }
+
+        function stopTimer() {
+            clearTimeout(dismissTimeout);
+        }
+
+        toast.addEventListener('mouseenter', stopTimer);
+        toast.addEventListener('mouseleave', startTimer);
+
+        const closeBtn = toast.querySelector('.toast-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dismissToast(toast);
+            });
+        }
+
+        // Start timer initially
+        startTimer();
+    }
+
+    function dismissToast(toast) {
+        toast.classList.add('toast-leaving');
+        const removeTimeout = setTimeout(() => {
+            toast.remove();
+            cleanToastContainer();
+        }, 300);
+
+        toast.addEventListener('transitionend', () => {
+            clearTimeout(removeTimeout);
+            toast.remove();
+            cleanToastContainer();
+        });
+    }
+
+    function cleanToastContainer() {
+        const container = document.getElementById('toast-container');
+        if (container && container.childElementCount === 0) {
+            container.remove();
+        }
+    }
+
+    function getToastIcon(type) {
+        switch (type) {
+            case 'success':
+                return `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+            case 'info':
+                return `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`;
+            case 'warning':
+                return `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+            case 'error':
+                return `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`;
+            default:
+                return '';
+        }
+    }
+
+    // ==========================================
+    // PREMIUM CONFIRMATION DIALOG (MODAL) SYSTEM
+    // ==========================================
+    
+    function showConfirmModal(title, description, onConfirm) {
+        const modal = document.getElementById('confirm-modal');
+        const modalTitle = document.getElementById('confirm-modal-title');
+        const modalDesc = document.getElementById('confirm-modal-desc');
+        const cancelBtn = document.getElementById('confirm-modal-cancel');
+        const okBtn = document.getElementById('confirm-modal-ok');
+        
+        if (!modal || !modalTitle || !modalDesc || !cancelBtn || !okBtn) return;
+        
+        modalTitle.textContent = title;
+        modalDesc.textContent = description;
+        
+        const previousActiveElement = document.activeElement;
+        
+        // Show modal
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+        
+        // Clean up previous event listeners by cloning
+        const newOkBtn = okBtn.cloneNode(true);
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        
+        let handleKeyDown;
+        let handleModalTab;
+        
+        function closeModal() {
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
+            window.removeEventListener('keydown', handleKeyDown);
+            modal.removeEventListener('keydown', handleModalTab);
+            if (previousActiveElement) {
+                previousActiveElement.focus();
+            }
+        }
+        
+        handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        
+        const focusableElements = [newCancelBtn, newOkBtn];
+        const firstFocusable = focusableElements[0];
+        const lastFocusable = focusableElements[focusableElements.length - 1];
+        
+        newCancelBtn.focus();
+        
+        handleModalTab = (e) => {
+            if (e.key === 'Tab') {
+                if (e.shiftKey) {
+                    if (document.activeElement === firstFocusable) {
+                        lastFocusable.focus();
+                        e.preventDefault();
+                    }
+                } else {
+                    if (document.activeElement === lastFocusable) {
+                        firstFocusable.focus();
+                        e.preventDefault();
+                    }
+                }
+            }
+        };
+        modal.addEventListener('keydown', handleModalTab);
+        
+        newCancelBtn.addEventListener('click', closeModal);
+        newOkBtn.addEventListener('click', () => {
+            onConfirm();
+            closeModal();
+        });
+        
+        const backdrop = document.getElementById('confirm-modal-backdrop');
+        if (backdrop) {
+            const newBackdrop = backdrop.cloneNode(true);
+            backdrop.parentNode.replaceChild(newBackdrop, backdrop);
+            newBackdrop.addEventListener('click', closeModal);
+        }
+    }
+
+    // ==========================================
+    // PREMIUM ABOUT MODAL SYSTEM
+    // ==========================================
+    
+    // ==========================================
+    // PREMIUM ABOUT MODAL SYSTEM
+    // ==========================================
+    
+    const aboutBtn = document.getElementById('about-btn');
+    const aboutModal = document.getElementById('about-modal');
+    const closeAboutBtn = document.getElementById('close-about-btn');
+    const aboutModalBackdrop = document.getElementById('about-modal-backdrop');
+    let aboutActiveElement = null;
+
+    function openAboutModal() {
+        if (aboutModal) {
+            aboutActiveElement = document.activeElement;
+            aboutModal.classList.add('active');
+            aboutModal.setAttribute('aria-hidden', 'false');
+            if (closeAboutBtn) {
+                closeAboutBtn.focus();
+            }
+            window.addEventListener('keydown', handleAboutKeyDown);
+            aboutModal.addEventListener('keydown', handleAboutTab);
+        }
+    }
+
+    function closeAboutModal() {
+        if (aboutModal) {
+            aboutModal.classList.remove('active');
+            aboutModal.setAttribute('aria-hidden', 'true');
+            window.removeEventListener('keydown', handleAboutKeyDown);
+            aboutModal.removeEventListener('keydown', handleAboutTab);
+            if (aboutActiveElement) {
+                aboutActiveElement.focus();
+            }
+        }
+    }
+
+    function handleAboutKeyDown(e) {
+        if (e.key === 'Escape') {
+            closeAboutModal();
+        }
+    }
+
+    function handleAboutTab(e) {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            if (closeAboutBtn) {
+                closeAboutBtn.focus();
+            }
+        }
+    }
+
+    if (aboutBtn) {
+        aboutBtn.addEventListener('click', openAboutModal);
+    }
+    if (closeAboutBtn) {
+        closeAboutBtn.addEventListener('click', closeAboutModal);
+    }
+    if (aboutModalBackdrop) {
+        aboutModalBackdrop.addEventListener('click', closeAboutModal);
+    }
+
+    // ==========================================
+    // NAVIGATION SIDEBAR SYSTEM
+    // ==========================================
+    const menuToggleBtn = document.getElementById('menu-toggle-btn');
+    const navSidebar = document.getElementById('nav-sidebar');
+    const closeMenuBtn = document.getElementById('close-menu-btn');
+    const navSidebarBackdrop = document.getElementById('nav-sidebar-backdrop');
+    const sidebarItems = navSidebar ? navSidebar.querySelectorAll('.sidebar-item') : [];
+
+    function openSidebar() {
+        if (navSidebar) {
+            navSidebar.classList.add('active');
+            navSidebar.setAttribute('aria-hidden', 'false');
+            if (closeMenuBtn) {
+                closeMenuBtn.focus();
+            }
+            window.addEventListener('keydown', handleSidebarKeyDown);
+        }
+    }
+
+    function closeSidebar() {
+        if (navSidebar) {
+            navSidebar.classList.remove('active');
+            if (menuToggleBtn) {
+                menuToggleBtn.focus();
+            }
+            navSidebar.setAttribute('aria-hidden', 'true');
+            window.removeEventListener('keydown', handleSidebarKeyDown);
+        }
+    }
+
+    function handleSidebarKeyDown(e) {
+        if (e.key === 'Escape') {
+            closeSidebar();
+        }
+    }
+
+    if (menuToggleBtn) {
+        menuToggleBtn.addEventListener('click', openSidebar);
+    }
+    if (closeMenuBtn) {
+        closeMenuBtn.addEventListener('click', closeSidebar);
+    }
+    if (navSidebarBackdrop) {
+        navSidebarBackdrop.addEventListener('click', closeSidebar);
+    }
+    sidebarItems.forEach(item => {
+        item.addEventListener('click', closeSidebar);
+    });
 });
 

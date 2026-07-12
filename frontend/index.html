@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Language Translation Tool - Decoupled client-side application interfacing with FastAPI.">
     <title>Language Translation Tool</title>
+    <!-- Favicon Branding -->
+    <link rel="icon" type="image/x-icon" href="assets/favicons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="assets/favicons/favicon-48x48.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/favicons/apple-touch-icon.png">
+    <link rel="manifest" href="assets/favicons/site.webmanifest">
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,10 +19,27 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.body.classList.add('dark-theme');
+            }
+        })();
+    </script>
     <header class="app-header">
         <div class="container header-container">
+            <div class="header-actions">
+                <button id="menu-toggle-btn" class="menu-toggle-btn" aria-label="Open navigation menu" type="button">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
             <h1 class="app-title">Language Translation Tool</h1>
-            <p class="app-subtitle">Translate text between 100+ languages instantly using Google Cloud Translation.</p>
+            <p class="app-subtitle">Break language barriers with fast, accurate, and intelligent translations.</p>
         </div>
     </header>
 
@@ -27,15 +51,15 @@
                 <div class="translation-toolbar">
                     <div class="dropdown-wrapper" id="source-dropdown-wrapper">
                         <label for="source-lang-select" class="sr-only">From Language</label>
-                        <select id="source-lang-select" class="lang-select" style="display: none;">
-                            <option value="auto">Detect Language</option>
+                        <select id="source-lang-select" name="source-lang-select" class="lang-select" style="display: none;">
+                            <option value="auto">Auto</option>
                             <option value="en">English</option>
                             <option value="es">Spanish</option>
                             <option value="fr">French</option>
                         </select>
                         <div class="custom-dropdown" id="source-custom-dropdown">
                             <button type="button" class="dropdown-trigger" id="source-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">
-                                <span class="selected-text">Detect Language</span>
+                                <span class="selected-text">Auto</span>
                                 <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <polyline points="6 9 12 15 18 9"></polyline>
                                 </svg>
@@ -46,7 +70,7 @@
                                         <circle cx="11" cy="11" r="8"></circle>
                                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                     </svg>
-                                    <input type="text" class="dropdown-search-input" placeholder="Search language..." aria-label="Search language">
+                                    <input type="text" id="source-lang-search" name="source-lang-search" class="dropdown-search-input" placeholder="Search language..." aria-label="Search language">
                                 </div>
                                 <ul class="dropdown-options" role="listbox" tabindex="-1">
                                     <!-- Options will be populated dynamically -->
@@ -66,7 +90,7 @@
 
                     <div class="dropdown-wrapper" id="target-dropdown-wrapper">
                         <label for="target-lang-select" class="sr-only">To Language</label>
-                        <select id="target-lang-select" class="lang-select" style="display: none;">
+                        <select id="target-lang-select" name="target-lang-select" class="lang-select" style="display: none;">
                             <option value="es">Spanish</option>
                             <option value="en">English</option>
                             <option value="fr">French</option>
@@ -84,7 +108,7 @@
                                         <circle cx="11" cy="11" r="8"></circle>
                                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                     </svg>
-                                    <input type="text" class="dropdown-search-input" placeholder="Search language..." aria-label="Search language">
+                                    <input type="text" id="target-lang-search" name="target-lang-search" class="dropdown-search-input" placeholder="Search language..." aria-label="Search language">
                                 </div>
                                 <ul class="dropdown-options" role="listbox" tabindex="-1">
                                     <!-- Options will be populated dynamically -->
@@ -99,23 +123,46 @@
                     <!-- Source Text Input -->
                     <div class="text-panel-wrapper source-panel">
                         <label for="source-textarea" class="panel-label">Source Text</label>
-                        <textarea id="source-textarea" class="text-panel-textarea" placeholder="Enter text to translate..." maxlength="5000" autofocus></textarea>
+                        <textarea id="source-textarea" name="source-textarea" class="text-panel-textarea" placeholder="Enter text to translate..." maxlength="5000" autofocus></textarea>
                         <div class="panel-footer">
                             <span id="char-counter" class="char-count">0 / 5000</span>
+                            <button id="clear-source-btn" class="btn btn-secondary btn-sm" type="button" aria-label="Clear source text">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                                Clear
+                            </button>
                         </div>
                     </div>
 
                     <!-- Target Text Output -->
                     <div class="text-panel-wrapper target-panel">
                         <label for="target-textarea" class="panel-label">Translation Output</label>
-                        <textarea id="target-textarea" class="text-panel-textarea readonly-textarea" placeholder="Translation will appear here..." readonly></textarea>
+                        <textarea id="target-textarea" name="target-textarea" class="text-panel-textarea readonly-textarea" placeholder="Translation will appear here..." readonly></textarea>
                         <div class="panel-footer">
-                            <button id="copy-btn" class="btn btn-secondary" disabled type="button">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
-                                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                            <div style="display: flex; gap: 0.75rem;">
+                                <button id="copy-btn" class="btn btn-secondary" disabled type="button">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                                    </svg>
+                                    Copy
+                                </button>
+                                <button id="download-btn" class="btn btn-secondary btn-icon" disabled type="button" aria-label="Download Translation" title="Download Translation">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="7 10 12 15 17 10"></polyline>
+                                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <button id="clear-target-btn" class="btn btn-secondary btn-sm" type="button" aria-label="Clear translated output">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                 </svg>
-                                Copy
+                                Clear
                             </button>
                         </div>
                     </div>
@@ -137,7 +184,202 @@
         </div>
     </footer>
 
+    <!-- History Drawer -->
+    <div id="history-drawer" class="history-drawer" aria-hidden="true">
+        <div class="history-drawer-backdrop" id="history-drawer-backdrop"></div>
+        <div class="history-drawer-content">
+            <div class="history-drawer-header">
+                <h2>History</h2>
+                <button id="close-history-btn" class="close-history-btn" aria-label="Close history">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-drawer-body">
+                <div class="history-drawer-actions">
+                    <button id="clear-all-history-btn" class="btn btn-secondary btn-sm" type="button">Clear All</button>
+                </div>
+                <div id="history-items-container" class="history-items-container">
+                    <!-- Items injected dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirm-modal" class="confirm-modal" aria-hidden="true">
+        <div class="confirm-modal-backdrop" id="confirm-modal-backdrop"></div>
+        <div class="confirm-modal-content">
+            <h3 id="confirm-modal-title">Clear source text?</h3>
+            <p id="confirm-modal-desc">This will remove the source text and the current translation.</p>
+            <div class="confirm-modal-actions">
+                <button id="confirm-modal-cancel" class="btn btn-secondary btn-sm" type="button">Cancel</button>
+                <button id="confirm-modal-ok" class="btn btn-primary btn-sm" type="button">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom About Modal -->
+    <div id="about-modal" class="about-modal" aria-hidden="true">
+        <div class="about-modal-backdrop" id="about-modal-backdrop"></div>
+        <div class="about-modal-content">
+            <div class="about-modal-header">
+                <h2>About App</h2>
+                <button id="close-about-btn" class="close-about-btn" aria-label="Close about">&times;</button>
+            </div>
+            <div class="about-modal-body">
+                <div class="about-app-meta">
+                    <h3 class="about-app-title">Language Translation Tool</h3>
+                    <span class="about-app-version">v1.0.0</span>
+                </div>
+                
+                <p class="about-app-desc">
+                    Translate text accurately between more than 100 languages using a fast, modern, and intuitive interface designed for everyday communication.
+                </p>
+                
+                <div class="about-app-features">
+                    <h4>Key Features</h4>
+                    <ul>
+                        <li>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feature-icon">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            Automatic language detection
+                        </li>
+                        <li>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feature-icon">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            Searchable language selection
+                        </li>
+                        <li>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feature-icon">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            Translation history
+                        </li>
+                        <li>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feature-icon">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            Light & Dark mode
+                        </li>
+                        <li>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feature-icon">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            Responsive design
+                        </li>
+                        <li>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feature-icon">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            Copy translation
+                        </li>
+                        <li>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feature-icon">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            Clear actions
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="about-modal-footer">
+                <p>Designed & Developed by Jay</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Sidebar -->
+    <div id="nav-sidebar" class="nav-sidebar" aria-hidden="true">
+        <div class="nav-sidebar-backdrop" id="nav-sidebar-backdrop"></div>
+        <div class="nav-sidebar-content">
+            <div class="nav-sidebar-header">
+                <h2>Menu</h2>
+                <button id="close-menu-btn" class="close-menu-btn" aria-label="Close menu">&times;</button>
+            </div>
+            <div class="nav-sidebar-body">
+                <!-- Theme Toggle Button -->
+                <button id="theme-toggle" class="sidebar-item" type="button">
+                    <span class="sidebar-item-icon">
+                        <!-- Moon Icon -->
+                        <svg class="theme-icon moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                        </svg>
+                        <!-- Sun Icon -->
+                        <svg class="theme-icon sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                            <circle cx="12" cy="12" r="5"></circle>
+                            <line x1="12" y1="1" x2="12" y2="3"></line>
+                            <line x1="12" y1="21" x2="12" y2="23"></line>
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                            <line x1="1" y1="12" x2="3" y2="12"></line>
+                            <line x1="21" y1="12" x2="23" y2="12"></line>
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                        </svg>
+                    </span>
+                    <span class="sidebar-item-label">Toggle Theme</span>
+                </button>
+                
+                <!-- History Button -->
+                <button id="history-btn" class="sidebar-item" type="button">
+                    <span class="sidebar-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                    </span>
+                    <span class="sidebar-item-label">History</span>
+                </button>
+                
+                <!-- About Button -->
+                <button id="about-btn" class="sidebar-item" type="button">
+                    <span class="sidebar-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                    </span>
+                    <span class="sidebar-item-label">About App</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Frontend client application script -->
     <script type="module" src="js/app.js"></script>
+
+    <!-- Theme Toggle Logic Script -->
+    <script>
+        (function () {
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            const sunIcon = themeToggleBtn.querySelector('.sun-icon');
+            const moonIcon = themeToggleBtn.querySelector('.moon-icon');
+
+            function updateIcons(isDark) {
+                if (isDark) {
+                    sunIcon.style.display = 'block';
+                    moonIcon.style.display = 'none';
+                } else {
+                    sunIcon.style.display = 'none';
+                    moonIcon.style.display = 'block';
+                }
+            }
+
+            const currentIsDark = document.body.classList.contains('dark-theme');
+            updateIcons(currentIsDark);
+
+            themeToggleBtn.addEventListener('click', () => {
+                const isDark = document.body.classList.toggle('dark-theme');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                updateIcons(isDark);
+            });
+        })();
+    </script>
 </body>
 </html>

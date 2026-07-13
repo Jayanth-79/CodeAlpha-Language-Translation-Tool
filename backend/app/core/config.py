@@ -10,16 +10,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_FILE_PATH = BACKEND_DIR / ".env"
 
-# Enforce .env file existence and prompt the developer if missing
-if not ENV_FILE_PATH.exists():
-    raise RuntimeError(
-        f"\n========================================================================\n"
-        f"CONFIGURATION ERROR: '.env' file not found at {ENV_FILE_PATH}.\n"
-        f"Please copy the '.env.example' template to '.env' to start the application:\n\n"
-        f"  cp backend/.env.example backend/.env\n"
-        f"========================================================================\n"
-    )
-
 
 class Settings(BaseSettings):
     """
@@ -38,9 +28,9 @@ class Settings(BaseSettings):
 
     # Pydantic Settings Configuration
     model_config = SettingsConfigDict(
-        env_file=str(ENV_FILE_PATH),
+        env_file=str(ENV_FILE_PATH) if ENV_FILE_PATH.exists() else None,
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
     )
 
 

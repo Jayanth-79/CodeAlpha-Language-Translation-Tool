@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const API_BASE_URL = 'http://127.0.0.1:8000/api';
+    const API_BASE_URL = 'https://language-translation-backend-grp1.onrender.com/api';
     let languagesMap = {};
     let lastDetectedLanguage = null;
 
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.menu = this.container.querySelector('.dropdown-menu');
             this.searchInput = this.container.querySelector('.dropdown-search-input');
             this.optionsList = this.container.querySelector('.dropdown-options');
-            
+
             this.highlightedIndex = -1;
             this.options = []; // Array of { value, text, element }
 
@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.searchInput.value = '';
             this.filterOptions();
             this.searchInput.focus();
-            
+
             const selectedOptIndex = this.options.findIndex(opt => opt.value === this.select.value);
             this.highlightIndex(selectedOptIndex);
         }
@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUI() {
             const currentValue = this.select.value;
             const currentOpt = this.options.find(opt => opt.value === currentValue);
-            
+
             if (currentOpt) {
                 this.selectedText.textContent = currentOpt.text;
                 this.options.forEach(opt => {
@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
         filterOptions() {
             const query = this.searchInput.value.toLowerCase().trim();
             let firstVisibleIndex = -1;
-            
+
             this.options.forEach((opt, idx) => {
                 const matches = opt.text.toLowerCase().includes(query);
                 if (matches) {
@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (index >= 0 && index < this.options.length) {
                 const opt = this.options[index];
                 opt.element.classList.add('highlighted');
-                
+
                 const containerHeight = this.optionsList.clientHeight;
                 const elemTop = opt.element.offsetTop;
                 const elemHeight = opt.element.clientHeight;
@@ -711,12 +711,12 @@ ${localDateTime}
     // ==========================================
     // TRANSLATION HISTORY FEATURE IMPLEMENTATION
     // ==========================================
-    
+
     function saveTranslationToHistory(sourceText, sourceCode, targetCode, translatedText) {
         if (!sourceText.trim() || !translatedText.trim()) return;
-        
+
         let history = JSON.parse(localStorage.getItem('translation_history') || '[]');
-        
+
         // Find language names
         let sourceName = '';
         if (sourceCode === 'auto') {
@@ -726,14 +726,14 @@ ${localDateTime}
             sourceName = languagesMap[sourceCode] || sourceCode;
         }
         const targetName = languagesMap[targetCode] || targetCode;
-        
+
         const timestamp = new Date().toLocaleString(undefined, {
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
         });
-        
+
         const item = {
             id: Date.now().toString(),
             sourceText,
@@ -744,7 +744,7 @@ ${localDateTime}
             translatedText,
             timestamp
         };
-        
+
         // Prevent duplicate consecutive entries
         if (history.length > 0) {
             const last = history[0];
@@ -752,12 +752,12 @@ ${localDateTime}
                 return;
             }
         }
-        
+
         history.unshift(item);
         if (history.length > 20) {
             history = history.slice(0, 20);
         }
-        
+
         localStorage.setItem('translation_history', JSON.stringify(history));
     }
 
@@ -780,9 +780,9 @@ ${localDateTime}
 
     function renderHistory() {
         if (!historyItemsContainer) return;
-        
+
         const history = JSON.parse(localStorage.getItem('translation_history') || '[]');
-        
+
         if (history.length === 0) {
             historyItemsContainer.innerHTML = `
                 <div class="history-empty-state">
@@ -933,12 +933,12 @@ ${localDateTime}
             const focusables = Array.from(
                 historyDrawer.querySelectorAll('button, [tabindex="0"]')
             ).filter(el => !el.disabled && el.offsetWidth > 0 && el.offsetHeight > 0);
-            
+
             if (focusables.length === 0) return;
-            
+
             const firstFocusable = focusables[0];
             const lastFocusable = focusables[focusables.length - 1];
-            
+
             if (e.shiftKey) {
                 if (document.activeElement === firstFocusable) {
                     lastFocusable.focus();
@@ -970,7 +970,7 @@ ${localDateTime}
     // ==========================================
     // CLEAR SOURCE & CLEAR TRANSLATION ACTIONS (WITH CUSTOM MODALS)
     // ==========================================
-    
+
     const clearSourceBtn = document.getElementById('clear-source-btn');
     if (clearSourceBtn) {
         clearSourceBtn.addEventListener('click', () => {
@@ -994,7 +994,7 @@ ${localDateTime}
                     if (copyBtn) {
                         copyBtn.disabled = true;
                     }
-                    
+
                     // Remove active toasts
                     const toastContainer = document.getElementById('toast-container');
                     if (toastContainer) {
@@ -1032,7 +1032,7 @@ ${localDateTime}
     // ==========================================
     // TOAST NOTIFICATION SYSTEM
     // ==========================================
-    
+
     function showToast(message, type = 'info') {
         let container = document.getElementById('toast-container');
         if (!container) {
@@ -1121,34 +1121,34 @@ ${localDateTime}
     // ==========================================
     // PREMIUM CONFIRMATION DIALOG (MODAL) SYSTEM
     // ==========================================
-    
+
     function showConfirmModal(title, description, onConfirm) {
         const modal = document.getElementById('confirm-modal');
         const modalTitle = document.getElementById('confirm-modal-title');
         const modalDesc = document.getElementById('confirm-modal-desc');
         const cancelBtn = document.getElementById('confirm-modal-cancel');
         const okBtn = document.getElementById('confirm-modal-ok');
-        
+
         if (!modal || !modalTitle || !modalDesc || !cancelBtn || !okBtn) return;
-        
+
         modalTitle.textContent = title;
         modalDesc.textContent = description;
-        
+
         const previousActiveElement = document.activeElement;
-        
+
         // Show modal
         modal.classList.add('active');
         modal.setAttribute('aria-hidden', 'false');
-        
+
         // Clean up previous event listeners by cloning
         const newOkBtn = okBtn.cloneNode(true);
         const newCancelBtn = cancelBtn.cloneNode(true);
         okBtn.parentNode.replaceChild(newOkBtn, okBtn);
         cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-        
+
         let handleKeyDown;
         let handleModalTab;
-        
+
         function closeModal() {
             modal.classList.remove('active');
             modal.setAttribute('aria-hidden', 'true');
@@ -1158,20 +1158,20 @@ ${localDateTime}
                 previousActiveElement.focus();
             }
         }
-        
+
         handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 closeModal();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
-        
+
         const focusableElements = [newCancelBtn, newOkBtn];
         const firstFocusable = focusableElements[0];
         const lastFocusable = focusableElements[focusableElements.length - 1];
-        
+
         newCancelBtn.focus();
-        
+
         handleModalTab = (e) => {
             if (e.key === 'Tab') {
                 if (e.shiftKey) {
@@ -1188,13 +1188,13 @@ ${localDateTime}
             }
         };
         modal.addEventListener('keydown', handleModalTab);
-        
+
         newCancelBtn.addEventListener('click', closeModal);
         newOkBtn.addEventListener('click', () => {
             onConfirm();
             closeModal();
         });
-        
+
         const backdrop = document.getElementById('confirm-modal-backdrop');
         if (backdrop) {
             const newBackdrop = backdrop.cloneNode(true);
@@ -1206,11 +1206,11 @@ ${localDateTime}
     // ==========================================
     // PREMIUM ABOUT MODAL SYSTEM
     // ==========================================
-    
+
     // ==========================================
     // PREMIUM ABOUT MODAL SYSTEM
     // ==========================================
-    
+
     const aboutBtn = document.getElementById('about-btn');
     const aboutModal = document.getElementById('about-modal');
     const closeAboutBtn = document.getElementById('close-about-btn');
